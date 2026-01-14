@@ -1,77 +1,81 @@
-import iziToast from "izitoast";
-import "izitoast/dist/css/iziToast.min.css";
-
 import { getImagesByQuery } from "./pixabay-api";
 import { initRender } from "./render-functions";
 import Pagination from "./pagination";
 import type { PixabayResponse } from "./types/pixabay";
 
-const form = document.querySelector<HTMLFormElement>("#search-form");
-const input = document.querySelector<HTMLInputElement>('input[name="searchQuery"]');
-const gallery = document.querySelector<HTMLElement>(".gallery");
-const loader = document.querySelector<HTMLElement>(".loader");
-const loadMoreBtn = document.querySelector<HTMLButtonElement>(".load-more");
-
-if (!form || !input || !gallery || !loader || !loadMoreBtn) {
-  throw new Error("Required DOM elements not found");
-}
-
-const render = initRender({ gallery, loader, loadMoreBtn });
-
 const pagination = new Pagination();
 let query: string = "";
-let totalHits: number = 0;
+
+const searchForm = document.querySelector<HTMLFormElement>(".form");
+const loadMoreButton = document.querySelector<HTMLButtonElement>(".load-more");
+const gallery = document.querySelector<HTMLElement>(".gallery");
+const loader = document.querySelector<HTMLElement>(".loader");
+
+if (!searchForm) throw new Error("Missing .form element in HTML");
+if (!loadMoreButton) throw new Error("Missing .load-more element in HTML");
+if (!gallery) throw new Error("Missing .gallery element in HTML");
+if (!loader) throw new Error("Missing .loader element in HTML");
+
+// Initialize render helpers with element instances
+const ui = initRender({ gallery, loader, loadMoreButton });
+
+searchForm.addEventListener("submit", onFormSubmit);
+loadMoreButton.addEventListener("click", onLoadMoreClick);
+
+async function onFormSubmit(event: SubmitEvent): Promise<void> {
+  event.preventDefault();
+
+  const form = event.currentTarget as HTMLFormElement;
+  const formData = new FormData(form);
+
+  const raw = formData.get("search-text");
+  query = typeof raw === "string" ? raw.trim() : "";
+
+  if (query === "") {
+    ui.showToast("Please enter a search query.");
+    return;
+  }
+
+  pagination.reset();
+  ui.clearGallery();
+  ui.hideLoadMoreButton();
+
+  await fetchAndRender();
+  form.reset();
+}
+
+async function onLoadMoreClick(): Promise<void> {
+  pagination.next();
+  await fetchAndRender();
+}
 
 async function fetchAndRender(): Promise<void> {
+  const isInitial: boolean = pagination.current === 1;
+
   try {
-    render.showLoader();
+    ui.showLoader();
+    ui.hideLoadMoreButton();
 
-    const page = pagination.getPage();
-    const data: PixabayResponse = await getImagesByQuery(query, page);
+    const data: PixabayResponse = await getImagesByQuery(query, pagination.current);
 
-    totalHits = data.totalHits;
-
-    if (data.hits.length === 0) {
-      render.hideLoadMore();
-      iziToast.error({ message: "Sorry, there are no images matching your search query. Please try again." });
+    if (isInitial && data.hits.length === 0) {
+      ui.showToast("There are no images matching your search query. Try again!");
       return;
     }
 
-    render.createGallery(data.hits);
+    ui.createGallery(data.hits);
 
-    const loaded = page * pagination.getPerPage();
-    if (loaded >= totalHits) {
-      render.hideLoadMore();
-      iziToast.info({ message: "We're sorry, but you've reached the end of search results." });
-    } else {
-      render.showLoadMore();
+    const isEndOfResults: boolean = pagination.isEnd(data.totalHits);
+    if (isEndOfResults) {
+      ui.hideLoadMoreButton();
+      ui.showToast("You've reached the end of search results.");
+      return;
     }
+
+    ui.showLoadMoreButton();
   } catch {
-    iziToast.error({ message: "An error occurred while fetching images. Try again." });
+    ui.showToast("An error occurred while fetching images. Try again.");
   } finally {
-    render.hideLoader();
+    ui.hideLoader();
   }
 }
-
-function onFormSubmit(event: SubmitEvent): void {
-  event.preventDefault();
-
-  const value = input.value.trim();
-  if (!value) return;
-
-  query = value;
-  pagination.reset();
-
-  render.clearGallery();
-  render.hideLoadMore();
-
-  void fetchAndRender();
-}
-
-function onLoadMoreClick(): void {
-  pagination.next();
-  void fetchAndRender();
-}
-
-form.addEventListener("submit", onFormSubmit);
-loadMoreBtn.addEventListener("click", onLoadMoreClick);

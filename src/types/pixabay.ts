@@ -1,3 +1,5 @@
+// src/types/pixabay.ts
+
 export interface PixabayImage {
   id: number;
   webformatURL: string;

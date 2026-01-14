@@ -1,81 +1,89 @@
+import iziToast from "izitoast";
 import SimpleLightbox from "simplelightbox";
-import "simplelightbox/dist/simple-lightbox.min.css";
 import type { PixabayImage } from "./types/pixabay";
+import "izitoast/dist/css/iziToast.min.css";
+import "simplelightbox/dist/simple-lightbox.min.css";
 
 export type RenderElements = {
-  gallery: HTMLElement; // если знаешь точнее — HTMLUListElement/HTMLDivElement
+  gallery: HTMLElement;
   loader: HTMLElement;
-  loadMoreBtn: HTMLButtonElement;
+  loadMoreButton: HTMLButtonElement;
 };
 
 export type RenderAPI = {
-  createGallery(images: PixabayImage[]): void;
-  clearGallery(): void;
-  showLoader(): void;
-  hideLoader(): void;
-  showLoadMore(): void;
-  hideLoadMore(): void;
+  createGallery: (images: PixabayImage[]) => void;
+  clearGallery: () => void;
+  showLoader: () => void;
+  hideLoader: () => void;
+  showLoadMoreButton: () => void;
+  hideLoadMoreButton: () => void;
+  showToast: (text: string) => void;
 };
 
 export function initRender(elements: RenderElements): RenderAPI {
-  const { gallery, loader, loadMoreBtn } = elements;
+  const { gallery, loader, loadMoreButton } = elements;
+
+  // initial UI state
+  loader.style.display = "none";
+  loadMoreButton.style.display = "none";
 
   const lightbox = new SimpleLightbox(".gallery a", {
-    captions: true,
     captionsData: "alt",
     captionDelay: 250,
   });
 
-  function createGallery(images: PixabayImage[]): void {
-    // ⚠️ оставь твою существующую разметку, просто тип уже PixabayImage[]
-    const markup = images
+  const createGallery = (images: PixabayImage[]): void => {
+    const galleryItems = images
       .map(
-        (img) => `
-        <a class="gallery__link" href="${img.largeImageURL}">
-          <div class="photo-card">
-            <img src="${img.webformatURL}" alt="${img.tags}" loading="lazy" />
-            <div class="info">
-              <p class="info-item"><b>Likes</b> ${img.likes}</p>
-              <p class="info-item"><b>Views</b> ${img.views}</p>
-              <p class="info-item"><b>Comments</b> ${img.comments}</p>
-              <p class="info-item"><b>Downloads</b> ${img.downloads}</p>
-            </div>
-          </div>
-        </a>`
+        (image) => `
+          <a href="${image.largeImageURL}">
+            <img
+              src="${image.webformatURL}"
+              alt="${image.tags}"
+              title="${image.tags}"
+              width="100"
+              height="100"
+              loading="lazy"
+            />
+          </a>`
       )
       .join("");
 
-    gallery.insertAdjacentHTML("beforeend", markup);
+    gallery.insertAdjacentHTML("beforeend", galleryItems);
     lightbox.refresh();
-  }
+  };
 
-  function clearGallery(): void {
+  const clearGallery = (): void => {
     gallery.innerHTML = "";
-  }
+  };
 
-  function showLoader(): void {
-    loader.classList.remove("is-hidden");
-  }
+  const showLoader = (): void => {
+    loader.style.display = "block";
+  };
 
-  function hideLoader(): void {
-    loader.classList.add("is-hidden");
-  }
+  const hideLoader = (): void => {
+    loader.style.display = "none";
+  };
 
-  function showLoadMore(): void {
-    loadMoreBtn.classList.remove("is-hidden");
-    loadMoreBtn.disabled = false;
-  }
+  const showLoadMoreButton = (): void => {
+    loadMoreButton.style.display = "block";
+  };
 
-  function hideLoadMore(): void {
-    loadMoreBtn.classList.add("is-hidden");
-  }
+  const hideLoadMoreButton = (): void => {
+    loadMoreButton.style.display = "none";
+  };
+
+  const showToast = (text: string): void => {
+    iziToast.info({ message: text, position: "topRight" });
+  };
 
   return {
     createGallery,
     clearGallery,
     showLoader,
     hideLoader,
-    showLoadMore,
-    hideLoadMore,
+    showLoadMoreButton,
+    hideLoadMoreButton,
+    showToast,
   };
 }

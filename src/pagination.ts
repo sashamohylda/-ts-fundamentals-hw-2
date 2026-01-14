@@ -1,4 +1,4 @@
-const PER_PAGE = 40;
+export const PER_PAGE = 15;
 
 export default class Pagination {
   private readonly perPage: number;
@@ -7,6 +7,10 @@ export default class Pagination {
   constructor(perPage: number = PER_PAGE) {
     this.perPage = perPage;
     this.page = 1;
+  }
+
+  public get current(): number {
+    return this.page;
   }
 
   public reset(): void {
@@ -18,11 +22,8 @@ export default class Pagination {
     return this.page;
   }
 
-  public getPage(): number {
-    return this.page;
-  }
-
-  public getPerPage(): number {
-    return this.perPage;
+  // Returns true when we've reached or passed the last page based on totalHits
+  public isEnd(totalHits: number): boolean {
+    return this.page * this.perPage >= totalHits;
   }
 }
