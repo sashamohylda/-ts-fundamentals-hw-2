@@ -1,76 +1,77 @@
+import iziToast from "izitoast";
+import "izitoast/dist/css/iziToast.min.css";
+
 import { getImagesByQuery } from "./pixabay-api";
 import { initRender } from "./render-functions";
 import Pagination from "./pagination";
+import type { PixabayResponse } from "./types/pixabay";
+
+const form = document.querySelector<HTMLFormElement>("#search-form");
+const input = document.querySelector<HTMLInputElement>('input[name="searchQuery"]');
+const gallery = document.querySelector<HTMLElement>(".gallery");
+const loader = document.querySelector<HTMLElement>(".loader");
+const loadMoreBtn = document.querySelector<HTMLButtonElement>(".load-more");
+
+if (!form || !input || !gallery || !loader || !loadMoreBtn) {
+  throw new Error("Required DOM elements not found");
+}
+
+const render = initRender({ gallery, loader, loadMoreBtn });
 
 const pagination = new Pagination();
-let query = "";
-const searchForm = document.querySelector(".form");
-const loadMoreButton = document.querySelector(".load-more");
-const gallery = document.querySelector(".gallery");
-const loader = document.querySelector(".loader");
+let query: string = "";
+let totalHits: number = 0;
 
-if (!searchForm) throw new Error("Missing .form element in HTML");
-if (!loadMoreButton) throw new Error("Missing .load-more element in HTML");
-if (!gallery) throw new Error("Missing .gallery element in HTML");
-if (!loader) throw new Error("Missing .loader element in HTML");
-
-// Initialize render helpers with element instances
-const ui = initRender({ gallery, loader, loadMoreButton });
-
-searchForm.addEventListener("submit", onFormSubmit);
-loadMoreButton.addEventListener("click", onLoadMoreClick);
-
-async function onFormSubmit(event) {
-  event.preventDefault();
-  const form = event.target;
-  const formData = new FormData(form);
-  query = formData.get("search-text").trim();
-
-  if (query === "") {
-    ui.showToast("Please enter a search query.");
-    return;
-  }
-
-  pagination.reset();
-  ui.clearGallery();
-  ui.hideLoadMoreButton();
-  await fetchAndRender();
-  form.reset();
-}
-
-async function onLoadMoreClick() {
-  pagination.next();
-  await fetchAndRender();
-}
-
-async function fetchAndRender() {
-  const isInitial = pagination.current === 1;
+async function fetchAndRender(): Promise<void> {
   try {
-    ui.showLoader();
-    ui.hideLoadMoreButton();
+    render.showLoader();
 
-    const data = await getImagesByQuery(query, pagination.current);
+    const page = pagination.getPage();
+    const data: PixabayResponse = await getImagesByQuery(query, page);
 
-    if (isInitial && data.hits.length === 0) {
-      ui.showToast(
-        "There are no images matching your search query. Try again!"
-      );
+    totalHits = data.totalHits;
+
+    if (data.hits.length === 0) {
+      render.hideLoadMore();
+      iziToast.error({ message: "Sorry, there are no images matching your search query. Please try again." });
       return;
     }
 
-    ui.createGallery(data.hits);
+    render.createGallery(data.hits);
 
-    const isEndOfResults = pagination.isEnd(data.totalHits);
-    if (isEndOfResults) {
-      ui.hideLoadMoreButton();
-      ui.showToast("You've reached the end of search results.");
-      return;
+    const loaded = page * pagination.getPerPage();
+    if (loaded >= totalHits) {
+      render.hideLoadMore();
+      iziToast.info({ message: "We're sorry, but you've reached the end of search results." });
+    } else {
+      render.showLoadMore();
     }
-
-    ui.showLoadMoreButton();
   } catch {
-    ui.showToast("An error occurred while fetching images. Try again.");
+    iziToast.error({ message: "An error occurred while fetching images. Try again." });
   } finally {
-    ui.hideLoader();
+    render.hideLoader();
   }
 }
+
+function onFormSubmit(event: SubmitEvent): void {
+  event.preventDefault();
+
+  const value = input.value.trim();
+  if (!value) return;
+
+  query = value;
+  pagination.reset();
+
+  render.clearGallery();
+  render.hideLoadMore();
+
+  void fetchAndRender();
+}
+
+function onLoadMoreClick(): void {
+  pagination.next();
+  void fetchAndRender();
+}
+
+form.addEventListener("submit", onFormSubmit);
+loadMoreBtn.addEventListener("click", onLoadMoreClick);
